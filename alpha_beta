@@ -1,0 +1,121 @@
+import re
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+try:
+    from scipy.interpolate import make_interp_spline
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
+    print("ATTENZIONE: SciPy non è installato. Il grafico smooth userà un'interpolazione lineare.")
+
+filepath=r'C:\Users\scapp\OneDrive\Documenti\hypergraphs\hyperedges-google.txt'
+#hyperedges-amazon-reviews.txt
+#hyperedges-stackoverflow-answers
+#hyperedges-google
+#hyperedges-wikipedia-pages
+#hyperedges-mathoverflow-answers
+def load_hypergraph_from_text(filepath):
+    """
+    Legge un ipergrafo da un file di testo.
+
+    Formato:
+      - Ogni riga = un iperarco.
+      - I vertici sono separati da spazi e/o virgole.
+      - Le righe vuote o che iniziano con '#' sono ignorate.
+
+    Ritorna:
+      hyperedges: lista di iperarchi, ciascuno come insieme di vertici (stringhe).
+    """
+    hyperedges = []
+    with open(filepath, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # separa per spazi o virgole
+            tokens = re.split(r"[,\s]+", line)
+            # rimuovi eventuali stringhe vuote
+            tokens = [t for t in tokens if t]
+            if tokens:
+                hyperedges.append(set(tokens))
+    if not hyperedges:
+        raise ValueError("Nessun iperarco valido trovato nel file.")
+    return hyperedges
+
+
+def compute_alpha_beta(hyperedges, rank):
+    """
+    hyperedges: lista di iperarchi, ciascuno rappresentato come iterabile di vertici
+    Ritorna:
+        alphas: array degli alpha
+        betas:  array dei corrispondenti beta
+    """
+    sizes = []
+#    rank = 0
+#    for e in hyperedges:
+#        sizes.append(e)
+#        if len(e) > rank:
+#            rank = len(e)
+
+    alphas = []
+    betas = []
+
+    for alpha in range(1, rank + 1):
+        new_sizes = []
+        for e in hyperedges:
+            if len(e) > alpha:
+                new_sizes.append(e)
+                
+        hyperedges = new_sizes
+        alphas.append(alpha)
+        betas.append(len(hyperedges))
+
+    return np.array(alphas), np.array(betas)\
+
+
+def plot_alpha_beta(alphas, betas):
+    # Primo grafico: punti (alpha, beta) senza interpolazione
+    plt.figure()
+    plt.plot(alphas, betas, marker="o", linestyle="none")
+    plt.xlabel(r"$\alpha$")
+    plt.ylabel(r"$\beta(\alpha)$")
+    plt.title("(Alpha, Beta) couples for GP")
+    plt.grid(True)
+
+    # Secondo grafico: versione smooth/interpolata
+    plt.figure()
+
+    # Griglia di x più densa per la curva smooth
+    x_new = np.linspace(alphas.min(), alphas.max(), 300)
+
+    if SCIPY_AVAILABLE and len(alphas) > 3:
+        # grado della spline: al massimo 3 e comunque < numero di punti
+        k = min(3, len(alphas) - 1)
+        spline = make_interp_spline(alphas, betas, k=k)
+        y_smooth = spline(x_new)
+    else:
+        # fallback: interpolazione lineare con numpy
+        y_smooth = np.interp(x_new, alphas, betas)
+
+    plt.plot(x_new, y_smooth)
+    plt.scatter(alphas, betas, label="Dati", zorder=3)
+    plt.xlabel(r"$\alpha$")
+    plt.ylabel(r"$\beta(\alpha)$")
+    plt.title("Alpha vs Beta")
+    plt.grid(True)
+    plt.legend()
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    hypergraph = load_hypergraph_from_text(filepath)
+
+    alphas, betas = compute_alpha_beta(hypergraph, 901729)
+    print("alpha:", alphas)
+    print("beta :", betas)
+
+    #plot_alpha_beta(alphas, betas)
+    plot_alpha_beta(alphas[:50000], betas[:50000])
