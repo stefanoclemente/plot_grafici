@@ -5,7 +5,9 @@ import numpy as np
 from pathlib import Path
 from itertools import product
 from matplotlib.ticker import ScalarFormatter
-
+from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MultipleLocator, FuncFormatter
+import math
 #Colonne rilevanti
 COLUMNS=['size', 'type', 'walltime']
 COLUMNS_H=['size', 'step', 'walltime']
@@ -134,57 +136,207 @@ def plot_pairs_aligned(coppie, etichette=None, show_values=False):
     plt.show()
 
 
-def plot_pairs_aligned1(coppie, etichette=None, show_values=False):
+def plot_pairs_aligned0(coppie, etichette=None, show_values=False, left_length=1.0, y_pad=0.20):
     """
-    coppie: lista di tuple (gaifman_normale, hypermotivo), es. [(g1,h1), (g2,h2), ...]
-    etichette: etichette sull'asse X, una per coppia
-    show_values: True per mostrare il valore numerico sopra ogni barra
+    Barre sinistre normalizzate a left_length, destre = (h/g)*left_length.
+    Asse Y con step fissi 0.1 e separatore decimale con virgola.
     """
-    motivo = [g for g, h in coppie]      # sinistra (blu)
-    hyper   = [h for g, h in coppie]      # destra (rosso)
+    color_left  = "#4d4d4d"  # grigio scuro
+    color_right = "#bfbfbf"  # grigio chiaro
 
-    n = len(coppie)
+    if not coppie:
+        raise ValueError("Devi passare almeno una coppia (g, h).")
+    if any((g is None) or (g <= 0) for g, _ in coppie):
+        raise ValueError("Tutti i valori 'g' devono essere > 0.")
+
+    gaifman_norm = [left_length] * len(coppie)
+    hyper_norm   = [(h / g) * left_length for g, h in coppie]
+
     if etichette is None:
-        etichette = ['MA', 'SA', 'AR', 'WI', 'GP', 'SE']
+        etichette = [f"C{i+1}" for i in range(len(coppie))]
+    elif len(etichette) != len(coppie):
+        raise ValueError("La lunghezza di 'etichette' deve coincidere con quella di 'coppie'.")
 
-    bar_width = 0.38       # larghezza singola barra
-    pair_gap  = 0.75       # distanza tra coppie (tra i centri delle barre sinistre successive)
-
-    # posizioni: x di sinistra e destra (x è il CENTRO della barra in matplotlib)
+    bar_width = 0.38
+    pair_gap  = 0.75
     x_left, x_right, x_ticks = [], [], []
-    for i in range(n):
-        xl = i * (2*bar_width + pair_gap)   # centro barra sinistra
-        xr = xl + bar_width                 # centro barra destra (adiacente)
-        x_left.append(xl)
-        x_right.append(xr)
-        x_ticks.append((xl + xr) / 2)       # centro della coppia
+    for i in range(len(coppie)):
+        xl = i * (2*bar_width + pair_gap)
+        xr = xl + bar_width
+        x_left.append(xl); x_right.append(xr); x_ticks.append((xl + xr) / 2)
 
-    fig, ax = plt.subplots(figsize=(9, 5))
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    ax.bar(x_left,  gaifman_norm, width=bar_width, color=color_left,
+           edgecolor='black', linewidth=1.2, label='Sinistra (normalizzata)')
+    ax.bar(x_right, hyper_norm,   width=bar_width, color=color_right,
+           edgecolor='black', linewidth=1.2, label='Destra (h/g)')
 
-    # barre: sinistra blu (gaifman), destra rossa (hypermotivo)
-    ax.bar(x_left,  motivo, width=bar_width, color='yellow',
-           edgecolor='black', linewidth=1.2, label='Gaifman + Motivo')
-    ax.bar(x_right, hyper,   width=bar_width, color='green',
-           edgecolor='black', linewidth=1.2, label='HyperMotivo')
-
-    # etichette X centrate sulla coppia
     ax.set_xticks(x_ticks)
     ax.set_xticklabels(etichette)
 
-    # opzionale: valore numerico sopra ogni barra
-    if show_values:
-        for x, y in zip(x_left, motivo):
-            ax.text(x, y, f"{y:.2f}", ha='center', va='bottom')
-        for x, y in zip(x_right, hyper):
-            ax.text(x, y, f"{y:.2f}", ha='center', va='bottom')
+    # ==== Asse Y: step 0.1 e formattazione con virgola ====
+    max_bar = max(max(gaifman_norm), max(hyper_norm) if hyper_norm else 0)
+    target_top = max_bar * (1.0 + y_pad)
+    # arrotonda in alto al decimo più vicino (>= target_top)
+    ylim_top = math.ceil(target_top / 0.1) * 0.1
+    if ylim_top == 0:  # fallback
+        ylim_top = 1.0
+    ax.set_ylim(0, ylim_top)
 
-    ax.set_ylabel("GB")
-    ax.set_title("Use of memory")
+    ax.yaxis.set_major_locator(MultipleLocator(0.1))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, pos: f"{v:.1f}".replace('.', ',')))
+
+    if show_values:
+        for x, v in zip(x_left, gaifman_norm):
+            ax.text(x, v, f"{v:.3g}".replace('.',','), ha='center', va='bottom', fontsize=9)
+        for x, v in zip(x_right, hyper_norm):
+            ax.text(x, v, f"{v:.3g}".replace('.',','), ha='center', va='bottom', fontsize=9)
+
+    ax.set_ylabel(f"Lunghezza normalizzata (sinistra = {str(left_length).replace('.',',')})")
+    ax.set_title("Confronto: sinistra normalizzata, destra = h/g")
     ax.legend()
     ax.grid(axis='y', linestyle='--', alpha=0.35)
 
     plt.tight_layout()
     plt.show()
+
+def plot_pairs_aligned00(coppie, etichette=None, show_values=False, left_length=1.0, y_pad=0.20):
+    """
+    sinistra = left_length (fisso)
+    destra   = (h/g) * left_length  (proporzioni esatte)
+    """
+
+    # grigi ben distinguibili in B/N
+    color_left  = "#4d4d4d"
+    color_right = "#bfbfbf"
+
+    if not coppie:
+        raise ValueError("Devi passare almeno una coppia (g, h).")
+    for g, _ in coppie:
+        if g is None or g <= 0:
+            raise ValueError("Ogni 'g' (sinistra) deve essere > 0.")
+
+    # NORMALIZZAZIONE (forziamo la divisione float)
+    gaifman_norm = [float(left_length)] * len(coppie)
+    hyper_norm   = [float(h)/float(g) * float(left_length) for g, h in coppie]
+
+    # etichette
+    if etichette is None:
+        etichette = [f"C{i+1}" for i in range(len(coppie))]
+    elif len(etichette) != len(coppie):
+        raise ValueError("La lunghezza di 'etichette' deve coincidere con quella di 'coppie'.")
+
+    # posizioni barre
+    bar_width = 0.38
+    pair_gap  = 0.75
+    x_left, x_right, x_ticks = [], [], []
+    for i in range(len(coppie)):
+        xl = i * (2*bar_width + pair_gap)
+        xr = xl + bar_width
+        x_left.append(xl); x_right.append(xr); x_ticks.append((xl + xr) / 2)
+
+    # plot
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    ax.bar(x_left,  gaifman_norm, width=bar_width, color=color_left,
+           edgecolor='black', linewidth=1.2, label='Motivo (normalized)')
+    ax.bar(x_right, hyper_norm,   width=bar_width, color=color_right,
+           edgecolor='black', linewidth=1.2, label='HyperMotivo')
+
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels(etichette)
+
+    # Asse Y: step 0.1 e formattazione con virgola
+    max_bar = max(max(gaifman_norm), max(hyper_norm))
+    ylim_top = math.ceil((max_bar * (1.0 + y_pad)) / 0.1) * 0.1
+    ax.set_ylim(0, max(0.1, ylim_top))
+    ax.yaxis.set_major_locator(MultipleLocator(0.1))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, pos: f"{v:.1f}".replace('.', ',')))
+
+    if show_values:
+        for x, v in zip(x_left, gaifman_norm):
+            ax.text(x, v, f"{v:.2f}".replace('.',','), ha='center', va='bottom', fontsize=9)
+        for x, v in zip(x_right, hyper_norm):
+            ax.text(x, v, f"{v:.2f}".replace('.',','), ha='center', va='bottom', fontsize=9)
+
+    ax.set_ylabel(f"Normalized times (s)")
+    ax.set_title("Time comparison")
+    ax.legend()
+    ax.grid(axis='y', linestyle='--', alpha=0.35)
+    plt.tight_layout()
+    plt.show()
+
+    return fig, ax
+
+def plot_pairs_aligned_times00(coppie, etichette=None, show_values=False, left_length=1.0, y_pad=0.20):
+    """
+    sinistra = left_length (fisso)
+    destra   = (h/g) * left_length  (proporzioni esatte)
+    """
+
+    # grigi ben distinguibili in B/N
+    color_left  = "#4d4d4d"
+    color_right = "#bfbfbf"
+
+    if not coppie:
+        raise ValueError("Devi passare almeno una coppia (g, h).")
+    for g, _ in coppie:
+        if g is None or g <= 0:
+            raise ValueError("Ogni 'g' (sinistra) deve essere > 0.")
+
+    # NORMALIZZAZIONE (forziamo la divisione float)
+    gaifman_norm = [float(left_length)] * len(coppie)
+    hyper_norm   = [float(h)/float(g) * float(left_length) for g, h in coppie]
+
+    # etichette
+    if etichette is None:
+        etichette = [f"C{i+1}" for i in range(len(coppie))]
+    elif len(etichette) != len(coppie):
+        raise ValueError("La lunghezza di 'etichette' deve coincidere con quella di 'coppie'.")
+
+    # posizioni barre
+    bar_width = 0.38
+    pair_gap  = 0.75
+    x_left, x_right, x_ticks = [], [], []
+    for i in range(len(coppie)):
+        xl = i * (2*bar_width + pair_gap)
+        xr = xl + bar_width
+        x_left.append(xl); x_right.append(xr); x_ticks.append((xl + xr) / 2)
+
+    # plot
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    ax.bar(x_left,  gaifman_norm, width=bar_width, color=color_left,
+           edgecolor='black', linewidth=1.2, label='Motivo (normalized)')
+    ax.bar(x_right, hyper_norm,   width=bar_width, color=color_right,
+           edgecolor='black', linewidth=1.2, label='HyperMotivo')
+
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels(etichette)
+
+    # Asse Y: step 0.1 e formattazione con virgola
+    max_bar = max(max(gaifman_norm), max(hyper_norm))
+    ylim_top = math.ceil((max_bar * (1.0 + y_pad)) / 0.1) * 0.1
+    ax.set_ylim(0, max(0.1, ylim_top))
+    ax.yaxis.set_major_locator(MultipleLocator(0.1))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, pos: f"{v:.1f}".replace('.', ',')))
+
+    if show_values:
+        for x, v in zip(x_left, gaifman_norm):
+            ax.text(x, v, f"{v:.2f}".replace('.',','), ha='center', va='bottom', fontsize=9)
+        for x, v in zip(x_right, hyper_norm):
+            ax.text(x, v, f"{v:.2f}".replace('.',','), ha='center', va='bottom', fontsize=9)
+
+    ax.set_ylabel(f"Normalized memory occupied (GB)")
+    ax.set_title("Memory comparison")
+    ax.legend()
+    ax.grid(axis='y', linestyle='--', alpha=0.35)
+    plt.tight_layout()
+    plt.show()
+
+    return fig, ax
+
+
+
+
 
 def compute_projection_times(df: pd.DataFrame):
     sp = df[df['stage'].str.contains('split', na=False)]
@@ -205,10 +357,10 @@ if __name__=='__main__':
 # Mathoverflow
 # aggrego per k
 # sommo 
-    a = select_columns(load_table(r""+personal_path2+r"\hyperedges-mathoverflow-answers_gaifman_K8_T8_S1000000.csv"))
+    a = select_columns(load_table(r""+personal_path2+r"\hyperedges-mathoverflow-answers_gaifman_K5_T8_S1000000.csv"))
     a = a[~a['type'].str.contains('sample', na=False)]
     a = times_total(times_by_k(a))
-    b = select_columns(load_table(r""+personal_path2+r"\hyperedges-mathoverflow-answers_hyper_K8_T8_S1000000.csv"), COLUMNS_H)
+    b = select_columns(load_table(r""+personal_path2+r"\hyperedges-mathoverflow-answers_hyper_K5_T8_S1000000.csv"), COLUMNS_H)
     b = b[~b['step'].str.contains('sample', na=False)]
     b = times_total(times_by_k(b))
 # Stackoverflow (manca il tempo di proiezione)
@@ -225,17 +377,29 @@ if __name__=='__main__':
     o += tempo_low
     print(m, o)
 # Amazon (manca il tempo di proiezione)
-    l = select_columns(load_table(r""+personal_path1+r"\hyperedges-amazon-reviews_gaifman_K6_T16_S100000.csv"))
+    l = select_columns(load_table(r""+personal_path1+r"\hyperedges-amazon-reviews_gaifman_K5_T8_S100000.csv"))
     l = l[~l['type'].str.contains('sample', na=False)]
     l = times_total(times_by_k(l))
-    n = select_columns(load_table(r""+personal_path1+r"\hyperedges-amazon-reviews_hyper_K6_T16_S100000.csv"), COLUMNS_H)
+    n = select_columns(load_table(r""+personal_path1+r"\hyperedges-amazon-reviews_hyper_K5_T8_S100000.csv"), COLUMNS_H)
     n = n[~n['step'].str.contains('sample', na=False)]
     n = times_total(times_by_k(n))
     tempi_pz1 = load_table(r""+personal_path1+r"\hyperedges-amazon-reviews_preproc.csv")
     tempo_full1, tempo_low1 = compute_projection_times(tempi_pz1)
     l = float(l) + float(tempo_full1)
     n = float(n) + float(tempo_low1)
-# RE
+# ARXIV
+
+    h = select_columns(load_table(r""+personal_path1+r"\hyperedges-arxiv-cats_gaifman_K5_T8_S100000.csv"))
+    h = h[~h['type'].str.contains('sample', na=False)]
+    h = times_total(times_by_k(h))
+    i = select_columns(load_table(r""+personal_path1+r"\hyperedges-arxiv-cats_hyper_K5_T8_S100000.csv"), COLUMNS_H)
+    i = i[~i['step'].str.contains('sample', na=False)]
+    i = times_total(times_by_k(i))
+    tempi_pz1 = load_table(r""+personal_path1+r"\hyperedges-arxiv-cats_preproc.csv")
+    tempo_full1, tempo_low1 = compute_projection_times(tempi_pz1)
+    h = float(h) + float(tempo_full1)
+    i = float(i) + float(tempo_low1)
+
 
 # GP
     g = select_columns(load_table(r""+personal_path1+r"\hyperedges-cpc-group-2024-2025_gaifman_K5_T8_S100000.csv"))
@@ -259,9 +423,9 @@ if __name__=='__main__':
     #tempo_full, tempo_low = compute_projection_times(tempi_pz)
     #w = float(w) + float(tempo_full)
     #z = float(z) + float(tempo_low)
-    coppie = [(a, b), (m, o), (l, n), (1000, 1000), (g, p), (w, z)]
-    #plot_pairs_aligned(coppie)
-    tempi= [(2507076, 3793676), (114481064, 20830848), (23694512, 20900140), (1000, 1000), (5274816, 3504632), (2098564, 1604280)]
+    coppie = [(a, b), (m, o), (l, n), (h, i), (g, p), (w, z)]
+    plot_pairs_aligned00(coppie, ['MA', 'SA', 'AR', 'AX', 'GP', 'SE'])
+    tempi= [(2507076, 3793676), (114481064, 20830848), (23694480, 20515724), (19660416, 661824), (5274816, 3504632), (2098564, 1604280)]
     tempi = [(g/(1024**2), h/(1024**2)) for g,h in tempi]
-    plot_pairs_aligned1(tempi)
+    plot_pairs_aligned_times00(tempi, ['MA', 'SA', 'AR', 'AX', 'GP', 'SE'])
 
