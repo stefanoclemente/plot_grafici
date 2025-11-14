@@ -1,11 +1,13 @@
 import statistics
 
-file_path=r'C:\Users\scapp\OneDrive\Documenti\hypergraphs\hyperedges-wikipedia-pages.txt'
-#hyperedges-amazon-reviews.txt
+file_path=r'C:\Users\scapp\OneDrive\Documenti\hypergraphs\ipergrafo_random_large.txt'
+#hypergraphs\hyperedges-amazon-reviews.txt
 #hyperedges-stackoverflow-answers
 #hyperedges-google
 #hyperedges-wikipedia-pages
 #hyperedges-mathoverflow-answers
+#hyperedges-cpc-group-2024-2025.txt
+#hyperedges-datascience-stackexchange-tags.txt
 def calcola_gradi(file_path, deg=5):
     # dizionario: vertice -> grado (numero di iperlati che lo contengono)
     gradi = {}

@@ -64,7 +64,7 @@ def compute_aggregate_times(df: pd.DataFrame, name: str):
             edgecolor='black',
             linewidth=0.5,
             zorder=10-j,  # piccolo davanti
-            label=f"k= {j+3}"
+            label=f"k= {j+5}"
         )
 
     # Etichette
@@ -87,31 +87,19 @@ if __name__=='__main__':
     for (c, k) in product(core, kappa):
         l = select_columns(load_table(r""+personal_path+"hyperedges-mathoverflow-answers_gaifman_K"+str(k)+"_T"+str(c)+"_S1000000.csv"))
         l = l[~l['type'].str.contains('sample', na=False)]
-        m = select_columns(load_table(r""+personal_path+"hyperedges-mathoverflow-answers_gaifman_dedup_K"+str(k)+"_T"+str(c)+"_S1000000.csv"))
-        m = m[~m['type'].str.contains('sample', na=False)]
-        n = select_columns(load_table(r""+personal_path+"hyperedges-mathoverflow-answers_hyper_dedup_K"+str(k)+"_T"+str(c)+"_S1000000.csv"), COLUMNS_H)
-        n = n[~n['step'].str.contains('sample', na=False)]
         o = select_columns(load_table(r""+personal_path+"hyperedges-mathoverflow-answers_hyper_K"+str(k)+"_T"+str(c)+"_S1000000.csv"), COLUMNS_H)
         o = o[~o['step'].str.contains('sample', na=False)]
         g.append(l)
-        g_d.append(m)
-        h_d.append(n)
         h.append(o)
     # Aggregazione per size
     g = [times_by_k(table) for table in g]
-    g_d = [times_by_k(table) for table in g_d]
     h = [times_by_k(table) for table in h]
-    h_d = [times_by_k(table) for table in h_d]
     # Totale tempo
     g_tot = [times_total(table) for table in g]
-    g_d_tot = [times_total(table) for table in g_d]
     h_tot = [times_total(table) for table in h]
-    h_d_tot = [times_total(table) for table in h_d]
 
     compute_aggregate_times(g_tot, "Gaifman + Motivo")
-    compute_aggregate_times(g_d_tot, "Dedup Motivo")
-    compute_aggregate_times(h_tot, "HyperMotivo (No dedup)")
-    compute_aggregate_times(h_d_tot, "Aggregate build-up runtime for HyperMotivo")
+    compute_aggregate_times(h_tot, "HyperMotivo")
     plt.show()
     
 
